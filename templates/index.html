@@ -34,14 +34,7 @@
   <div id="container">
     <header>
         <h1><a id="home" href="home">SO::Simple</a></h1>
-        <ul>
-            <% if session.user %>
-                <li><a href="logout">Logout</a></li>
-            <% else %>
-                <li><a href="login">Login</a></li>
-                <li><a href="register">Register</a></li>
-            <% end %>
-        </ul>
+        <ul id="register_login_logout"></ul>
     </header>
     
     
