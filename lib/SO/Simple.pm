@@ -3,6 +3,9 @@ use Web::Simple 'SO::Simple';
 use HTML::Zoom;
 use Plack::Builder;
 use SO::Simple::Model;
+use SO::Simple::Page;
+
+with 'SO::Simple::Sugar';
 
 has template_dir => (
   is => 'rw',
@@ -16,11 +19,11 @@ has dsn => (
   default => sub { $_[0]->config->{dsn} }
 );
 
-has zoom => (
+has page => (
   is => 'ro',
   lazy => 1,
-  builder => '_build_zoom',
-  clearer => '_clear_zoom',
+  builder => '_build_page',
+  handles => [ qw(apply_template render_to_fh) ],
 );
 
 has session => (
@@ -36,18 +39,9 @@ has kioku => (
   builder => '_build_kioku',
 );
 
-sub _build_zoom {
+sub _build_page {
   my $self = shift;
-  my $session = $self->session;
-  my $rll = exists $session->{user} ?
-            '<li><a href="/logout">Logout</a></li>' :
-            '<li><a href="/login">Login</a></li>&nbsp;<li><a href="/register">Register</a></li>';
-
-  HTML::Zoom
-  ->from_file($self->template_dir . '/index.html')
-  ->replace_content(title => $self->config->{title})
-  ->replace_content('#a_home' => $self->config->{title})
-  ->replace_content('ul#register_login_logout' => \$rll);
+  SO::Simple::Page->new( template_dir => $self->template_dir );
 }
 
 sub _build_kioku {
@@ -65,25 +59,16 @@ sub default_config {
 sub dispatch_request {
   sub (/) {
     my $self = shift;
-    my $content = '';
-    my $fh = $self->zoom
-             ->replace_content('div#main' => $content)
-             ->to_fh;
-    [ 200, [ 'Content-type' => 'text/html' ], $fh ]
+    my $fh = $self->apply_template('index')->render_to_fh;
+    $self->status_ok($fh);
   },
 
   sub (GET + /login) {
     my $self = shift;
     my @body;
 
-    HTML::Zoom
-    ->from_file($self->template_dir . '/login.html')
-    ->select('div#main')
-    ->collect_content({ into => \@body })
-    ->run;
-
-    my $fh = $self->zoom->replace_content('div#main' => \@body)->to_fh; 
-    [ 200, [ 'Content-type' => 'text/html' ], $fh ]
+    my $fh = $self->apply_template('login')->render_to_fh;
+    $self->status_ok($fh);
   },
 
   sub (POST + /login + %username=&password=) {
@@ -98,16 +83,14 @@ sub dispatch_request {
       or die "Invalid password";
     $session->{user} = $username;
     $self->session($session);
-    $self->_clear_zoom;
-    [ 302, [ Location => '/' ], [] ];
+    $self->redirect_to('/');
   },
 
   sub (GET + /logout) {
     my $self = shift;
     delete $_[PSGI_ENV]->{'psgix.session'}{$_} for keys %{$_[PSGI_ENV]->{'psgix.session'}};
     $self->_clear_session;
-    $self->_clear_zoom;
-    [ 302, [ Location => '/' ], [] ];
+    $self->redirect_to('/');
   }
 }
 
