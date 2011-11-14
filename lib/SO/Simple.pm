@@ -58,17 +58,51 @@ sub default_config {
 
 sub dispatch_request {
   sub (/) {
-    my $self = shift;
-    my $fh = $self->apply_template('index')->render_to_fh;
-    $self->status_ok($fh);
+    $_[0]->status_ok($_[0]->apply_template('index')->render_to_fh);
+  },
+
+  sub (GET + /question/new) {
+    $_[0]->status_ok($_[0]->apply_template('new_question')->render_to_fh);
+  },
+
+  sub (POST + /question/new/ + %title=&text=) {
+    my ($self, $title, $text) = @_;
+    my $env = $_[PSGI_ENV];
+    my $session = $env->{'psgix.session'};
+    try {
+      my $dir = $self->kioku;
+      my $scope = $dir->new_scope;
+      my $user = $dir->lookup( 'user:' . $session->{user}->id );
+      my $question = SO::Simple::Question->new(
+        author => $user,
+        title  => $title,
+        text   => $text,
+      );
+        $dir->store($question);
+        $self->redirect_to('/question/' . $question->id);
+    }
+    catch {
+#        debug $_;
+#        template 'new_question' => { error => $_ };
+    }
+  },
+
+  sub (GET + /question/*) {
+    my ($self, $id) = @_;
+
+    my $dir = $self->kioku;
+    my $scope = $dir->new_scope;
+    my $question = $dir->lookup( $id );
+    $self->status_ok($self->apply_template('question')->render_to_fh);
+  },
+
+  sub (POST + /question/*/answer + %text=) {
+    my ($self, $id, $text) = @_;
+    $self->redirect_to('/question/' . $id);
   },
 
   sub (GET + /login) {
-    my $self = shift;
-    my @body;
-
-    my $fh = $self->apply_template('login')->render_to_fh;
-    $self->status_ok($fh);
+    $_[0]->status_ok($_[0]->apply_template('login')->render_to_fh);
   },
 
   sub (POST + /login + %username=&password=) {
