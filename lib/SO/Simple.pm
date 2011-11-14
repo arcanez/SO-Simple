@@ -4,6 +4,8 @@ use HTML::Zoom;
 use Plack::Builder;
 use SO::Simple::Model;
 use SO::Simple::Page;
+use SO::Simple::Answer;
+use SO::Simple::Question;
 
 with 'SO::Simple::Sugar';
 
@@ -65,10 +67,11 @@ sub dispatch_request {
     $_[0]->status_ok($_[0]->apply_template('new_question')->render_to_fh);
   },
 
-  sub (POST + /question/new/ + %title=&text=) {
+  sub (POST + /question/new + %title=&text=) {
     my ($self, $title, $text) = @_;
     my $env = $_[PSGI_ENV];
     my $session = $env->{'psgix.session'};
+    return $self->redirect_to('/login') unless $session->{user};
     try {
       my $dir = $self->kioku;
       my $scope = $dir->new_scope;
@@ -93,11 +96,51 @@ sub dispatch_request {
     my $dir = $self->kioku;
     my $scope = $dir->new_scope;
     my $question = $dir->lookup( $id );
-    $self->status_ok($self->apply_template('question')->render_to_fh);
+
+    my $ts = join ' ', ($question->timestamp->ymd('-'), $question->timestamp->hms(':'));
+
+    my $template = $self->apply_template('question')->zoom;
+    $self->status_ok(
+      $template->replace_content('h2.question_title' => $question->title)
+               ->replace_content('div.question_text' => $question->text)
+               ->replace_content('p.question_vote_count' => $question->votes_count)
+               ->replace_content('p.question_author' => 'Posted by ' . $question->author->id . " on $ts")
+               ->replace_content('h2.question_answer_count' => $question->answers_count . ' Answers')
+               ->select('article.answer')
+               ->repeat([ map { 
+                 my $answer = $_; 
+                 sub { 
+                   my $_ts = join ' ', ($answer->timestamp->ymd('-'), $answer->timestamp->hms(':'));
+                   $_->replace_content('div.answer_text' => $answer->text)
+                     ->replace_content('p.answer_vote_count' => $answer->votes_count)
+                     ->replace_content('p.answer_author' => ' Posted by ' . $answer->author->id . " on $_ts");
+                 } 
+               } $question->answers ])
+               ->select('form#answer')->set_attribute(action => "/question/$id/answer")
+               ->to_fh
+    );
   },
 
   sub (POST + /question/*/answer + %text=) {
     my ($self, $id, $text) = @_;
+
+    my $env = $_[PSGI_ENV];
+    my $session = $env->{'psgix.session'};
+    return $self->redirect_to('/login') unless $session->{user};
+
+    my $dir = $self->kioku;
+    my $scope = $dir->new_scope;
+    my $question = $dir->lookup( $id );
+    my $user = $dir->lookup( 'user:' . $session->{user}->id );
+
+    my $answer = SO::Simple::Answer->new(
+        author => $user,
+        text   => $text,
+    );
+
+    $question->add_answer($answer);
+    $dir->store($question);
+
     $self->redirect_to('/question/' . $id);
   },
 
@@ -115,7 +158,7 @@ sub dispatch_request {
       or die 'Invalid username';
     $user->check_password($password)
       or die "Invalid password";
-    $session->{user} = $username;
+    $session->{user} = $user;
     $self->session($session);
     $self->redirect_to('/');
   },

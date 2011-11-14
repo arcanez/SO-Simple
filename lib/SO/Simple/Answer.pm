@@ -1,6 +1,7 @@
 package SO::Simple::Answer;
 use Moose;
 use DateTime;
+use Digest::SHA qw(sha1_hex);
 
 has id => (
     isa     => 'Str',
