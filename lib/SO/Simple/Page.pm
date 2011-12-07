@@ -1,5 +1,5 @@
 package SO::Simple::Page;
-use Moo;
+use Moose;
 use HTML::Zoom;
 
 has template_dir => (
@@ -36,4 +36,5 @@ sub render_to_fh {
   $_[0]->zoom->to_fh;
 }
 
+__PACKAGE__->meta->make_immutable;
 1;
