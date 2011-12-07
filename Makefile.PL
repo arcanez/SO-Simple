@@ -9,7 +9,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Web::Simple' => 0,
         'HTML::Zoom' => 0,
-        'Moose' => 0.93,
+        'Moo' => 0,
         'KiokuDB' => 0,
         'KiokuDB::Backend::DBI' => 0,
         'KiokuX::User' => 0,

@@ -1,5 +1,5 @@
 package SO::Simple::Sugar;
-use Moose::Role;
+use Moo::Role;
 
 sub status_ok {
   $_[1] = ref($_[1]) eq 'HTML::Zoom::ReadFH' ? $_[1] : [ $_[1] ];
