@@ -58,4 +58,11 @@ has timestamp => (
     default => sub { DateTime->now }
 );
 
+has approved => (
+    isa     => 'Bool',
+    is      => 'rw',
+    lazy    => 1,
+    default => 0,
+);
+
 1;
